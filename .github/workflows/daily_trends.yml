@@ -1,14 +1,12 @@
-name: Daily Trend Pulse
+name: Global Trends to Feishu Bitable
 
 on:
   schedule:
-    # 每天北京时间早上 8:00 自动触发 (12:00 AM UTC)
-    - cron: '0 0 * * *'
-  # 允许你随时在 GitHub 页面上手动点击按钮触发
-  workflow_dispatch:
+    - cron: '0 23 * * *'  # 每天北京时间早上 7:00 自动运行
+  workflow_dispatch:     # 允许你在 GitHub 页面上手动点击按钮触发
 
 jobs:
-  run-trend-pulse:
+  write-to-feishu:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,24 +17,120 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install uv and dependencies
+      - name: Install dependencies
         run: |
-          # 1. 安装最新版 uv 编译器
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
-          # 2. 一键安装本项目及所有依赖
-          uv pip install --system .
+          uv pip install --system . requests
 
-      - name: Get Global Trends
+      - name: Fetch and AI Process to Feishu
+        env:
+          AI_KEY: ${{ secrets.AI_API_KEY }}
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
         run: |
-          # 3. 运行命令行工具抓取数据 (可以修改 --geo 后面的国家代码，US为美国)
-          trend-pulse trending --geo US --count 10 > today_trends.txt
+          export PATH="$HOME/.local/bin:$PATH"
+          
+          # 1. 抓取海外最火爆的 YouTube 趋势和 Google 趋势
+          echo "=== 美国热点选题 ===" >> today_trends.txt
+          trend-pulse trending --geo US --category technology,lifestyle,entertainment --count 10 > raw_data.txt
+          
+          # 再追加日本热点到同一个文件里
+          echo "=== 日本热点选题 ===" >> today_trends.txt
+          trend-pulse trending --geo JP --category technology,lifestyle,entertainment --count 10 >> raw_data.txt
 
-      - name: Commit and push changes
-        run: |
-          # 4. 将抓取下来的 today_trends.txt 保存并提交回仓库
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add today_trends.txt
-          git commit -m "Update daily trends" || exit 0
-          git push
+          # 再追加台湾热点到同一个文件里
+          echo "=== 日本热点选题 ===" >> today_trends.txt
+          trend-pulse trending --geo TW --category technology,lifestyle,entertainment --count 10 >> raw_data.txt
+          
+          # 2. 运行 Python 脚本处理，并自动批量推送到飞书多维表格
+          python - <<EOF
+          import os
+          import json
+          import requests
+
+          with open("raw_data.txt", "r", encoding="utf-8") as f:
+              raw_content = f.read()
+
+          # 调用 AI (此处以硅基流动/DeepSeek为例，可自行替换成OpenAI的API地址)
+          ai_url = "https://ark.cn-beijing.volces.com/api/plan/v3" 
+          headers = {
+              "Authorization": f"Bearer {os.environ['AI_KEY']}", 
+              "Content-Type": "application/json"
+          }
+
+          # 极其苛刻地限制 AI 只输出标准 JSON，避免干扰运行
+          prompt = f"""
+          你是一个熟悉国内自媒体和小红书流量密码的【自媒体爆款导师】。
+          请阅读以下我为你抓取到的今日海外实时热点数据：
+          {raw_content}
+
+          任务：从上述热点中，筛选并转化出 3 个最具备爆款潜力的“信息差”选题。
+          要求：你必须严格并且只输出一个合法的 JSON 数组，不要包含任何 Markdown 格式（比如不要加上 ```json），不要有任何解释性前言或多余的话。
+
+          JSON 数组中的每个对象格式必须如下：
+          [
+            {{
+              "title": "爆款中文标题",
+              "origin": "海外原帖视频简介/搜索热度解释",
+              "outline": "详细说明国内切入角度，分步骤写下爆款脚本框架，并写3个情绪共鸣金句"
+            }}
+          ]
+          """
+
+          data = {
+              "model": "deepseek-v4-flash",
+              "messages": [{"role": "user", "content": prompt}],
+              "temperature": 0.3
+          }
+
+          print("1. 正在调遣大模型脑暴中...")
+          response = requests.post(ai_url, json=data, headers=headers).json()
+          ai_raw_text = response['choices'][0]['message']['content'].strip()
+
+          # 清洗 AI 偶发产生的 Markdown 包装
+          if ai_raw_text.startswith("```"):
+              ai_raw_text = ai_raw_text.split("```")[1]
+              if ai_raw_text.startswith("json"):
+                  ai_raw_text = ai_raw_text[4:]
+          ai_raw_text = ai_raw_text.strip()
+
+          topics = json.loads(ai_raw_text)
+
+          print("2. 正在向飞书总部申请临时通行证 (Tenant Access Token)...")
+          auth_url = "[https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal](https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal)"
+          auth_res = requests.post(auth_url, json={
+              "app_id": os.environ["FEISHU_APP_ID"],
+              "app_secret": os.environ["FEISHU_APP_SECRET"]
+          }).json()
+          tenant_token = auth_res["tenant_access_token"]
+
+          print("3. 正在将选题批量运往你的飞书多维表格...")
+          feishu_headers = {
+              "Authorization": f"Bearer {tenant_token}",
+              "Content-Type": "application/json; charset=utf-8"
+          }
+          
+          # 调用飞书 Bitable 批量写入接口
+          app_token = os.environ['FEISHU_APP_TOKEN']
+          table_id = os.environ['FEISHU_TABLE_ID']
+          add_record_url = f"[https://open.feishu.cn/open-apis/bitable/v1/apps/](https://open.feishu.cn/open-apis/bitable/v1/apps/){app_token}/tables/{table_id}/records/batch_create"
+
+          records = []
+          for topic in topics:
+              records.append({
+                  "fields": {
+                      "选题标题": topic["title"],
+                      "海外原帖": topic["origin"],
+                      "爆款脚本大纲": topic["outline"]
+                  }
+              })
+
+          write_res = requests.post(add_record_url, json={"records": records}, headers=feishu_headers).json()
+          if write_res.get("code") == 0:
+              print("🎉 恭喜你！每日选题已成功输送到飞书多维表格！")
+          else:
+              print("⚠️ 飞书写入出错：", write_res)
+          EOF
