@@ -11,51 +11,71 @@ def main():
     with open("raw_data.txt", "r", encoding="utf-8") as f:
         raw_content = f.read()
 
-    # 2. 准备 AI 请求参数
-    ai_url = "https://ark.cn-beijing.volces.com/api/plan/v3"  # 或者是硅基流动、OpenAI 的 API 地址
+    # 2. 准备 Gemini API 请求参数
+    # 采用当前性价比最高、速度最快的 gemini-2.5-flash 模型
+    base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    ai_url = f"{base_url}?key={os.environ['AI_KEY']}"
+    
     headers = {
-        "Authorization": f"Bearer {os.environ['AI_KEY']}", 
         "Content-Type": "application/json"
     }
 
-    # 严格指令：命令 AI 过滤分类并仅输出标准的 JSON 数组，不带任何废话
     prompt = f"""
-你是一个熟悉国内自媒体、抖音和小红书流量密码的【自媒体爆款导师】。
-请阅读以下我为你抓取到的今日日本（JP）地区实时热点原始数据：
+you are a social media expert familiar with traffic secrets of Xiaohongshu and Douyin.
+Please read the raw trend data from multiple regions below:
 {raw_content}
 
-核心任务：
-1. 请从上述所有热点中，**严格筛选并只保留【科技/数码、日常生活/生活方式、娱乐/影视八卦】这三个领域**的内容。直接过滤掉政治、社会新闻、体育等不相干的内容。
-2. 从过滤后的内容里，转化出 3 个最具备爆款潜力的“信息差”选题。
+Core Tasks:
+1. Strictly filter and keep content only from 【Technology/Digital, Daily Lifestyle, Entertainment/Movies/Gossip】. Directly filter out unrelated content like politics, general social news, sports, etc.
+2. From the filtered content, convert them into 3 high-potential topic ideas for the Chinese market.
 
-要求：你必须严格并且只输出一个合法的 JSON 数组，不要包含任何 Markdown 格式包装（比如不要加上 ```json 和结尾的 ```），不要有任何解释性前言或多余的话。
+Requirements: You must strictly and only output a valid JSON array. Do NOT wrap it in Markdown (like ```json and ending ```), do NOT include any introductory or explanatory text.
 
-JSON 数组中的每个对象格式必须如下：
+The format inside the JSON array must be EXACTLY as follows:
 [
   {{
     "title": "爆款中文标题",
-    "origin": "海外原帖视频简介/搜索热度解释（注明属于科技/生活/娱乐哪一类）",
+    "origin": "海外原帖视频简介/搜索热度解释（注明属于哪个国家/地区以及科技/生活/娱乐哪一类）",
     "outline": "详细说明国内切入角度，分步骤写下爆款脚本框架，并写3个情绪共鸣金句"
   }}
 ]
 """
 
+    # 适配 Gemini 官方的 JSON 请求格式
     data = {
-        "model": "deepseek-v4-flash",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "generationConfig": {
+            "temperature": 0.3,
+            "responseMimeType": "application/json" # 强制 Gemini 输出 JSON 格式
+        }
     }
 
-    print("1. 正在调遣大模型脑暴并筛选分类中...")
-    response = requests.post(ai_url, json=data, headers=headers).json()
+    print("1. 正在调遣 Gemini 脑暴并筛选分类中...")
     
-    if "choices" not in response:
-        print("❌ AI 响应异常，请检查 API Key 或网络：", response)
+    res = requests.post(ai_url, json=data, headers=headers)
+    
+    if res.status_code != 200:
+        print(f"❌ Gemini 服务器返回错误！状态码: {res.status_code}")
+        print(f"返回的内容为:\n{res.text}")
         return
-        
-    ai_raw_text = response['choices'][0]['message']['content'].strip()
 
-    # 清洗 AI 偶发产生的 Markdown 格式包装
+    try:
+        response = res.json()
+    except Exception as e:
+        print("❌ 无法解析 Gemini 返回的数据为 JSON 格式！")
+        print(f"返回的原始文本是:\n{res.text}")
+        return
+    
+    # 提取 Gemini 的文本内容
+    try:
+        ai_raw_text = response['candidates'][0]['content']['parts'][0]['text'].strip()
+    except KeyError:
+        print("❌ Gemini 返回的结构异常，可能是触发了内容安全安全审查：", response)
+        return
+
+    # 防御性清洗（虽然配置了 responseMimeType，但以防万一）
     if ai_raw_text.startswith("```"):
         ai_raw_text = ai_raw_text.split("```")[1]
         if ai_raw_text.startswith("json"):
@@ -65,7 +85,7 @@ JSON 数组中的每个对象格式必须如下：
     try:
         topics = json.loads(ai_raw_text)
     except Exception as e:
-        print(f"❌ 解析 AI 传回的 JSON 失败。AI 的原始内容为：\n{ai_raw_text}")
+        print(f"❌ 解析 Gemini 传回的 JSON 失败。原始文本为：\n{ai_raw_text}")
         print("错误信息：", e)
         return
 
