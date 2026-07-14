@@ -35,15 +35,15 @@ jobs:
           
           # 1. 抓取海外最火爆的 YouTube 趋势和 Google 趋势
           echo "=== 美国热点选题 ===" >> today_trends.txt
-          trend-pulse trending --geo US --category technology,lifestyle,entertainment --count 10 > raw_data.txt
+          trend-pulse trending --geo US --count 10 > raw_data.txt
           
           # 再追加日本热点到同一个文件里
           echo "=== 日本热点选题 ===" >> today_trends.txt
-          trend-pulse trending --geo JP --category technology,lifestyle,entertainment --count 10 >> raw_data.txt
+          trend-pulse trending --geo JP --count 10 >> raw_data.txt
 
           # 再追加台湾热点到同一个文件里
           echo "=== 日本热点选题 ===" >> today_trends.txt
-          trend-pulse trending --geo TW --category technology,lifestyle,entertainment --count 10 >> raw_data.txt
+          trend-pulse trending --geo TW --count 10 >> raw_data.txt
           
           # 2. 运行 Python 脚本处理，并自动批量推送到飞书多维表格
           python - <<EOF
