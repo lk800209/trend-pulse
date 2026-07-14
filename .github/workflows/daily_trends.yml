@@ -42,10 +42,7 @@ jobs:
           # 3. 追加韩国数据
           echo "=== COUNTRY: KR ===" >> raw_data.txt
           trend-pulse trending --sources youtube,google-trends --geo KR --count 15 >> raw_data.txt
-
-          # 4. 追加台湾地区数据
-          echo "=== COUNTRY: TW ===" >> raw_data.txt
-          trend-pulse trending --sources youtube,google-trends --geo TW --count 15 >> raw_data.txt          
+                 
 
       - name: Process with AI and Push to Feishu
         env:
