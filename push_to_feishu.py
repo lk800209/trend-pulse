@@ -77,6 +77,7 @@ The JSON array structure must strictly match this template:
         response = res.json()
     except Exception as e:
         print("❌ 无法解析 Gemini 返回的数据为 JSON 格式！")
+        print(f"解析错误信息: {e}")  # 这里用到了 e
         print(f"返回的原始文本是:\n{res.text}")
         return
     
