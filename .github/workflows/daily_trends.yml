@@ -1,0 +1,42 @@
+name: Daily Trend Pulse
+
+on:
+  schedule:
+    # 每天北京时间早上 8:00 自动触发 (12:00 AM UTC)
+    - cron: '0 0 * * *'
+  # 允许你随时在 GitHub 页面上手动点击按钮触发
+  workflow_dispatch:
+
+jobs:
+  run-trend-pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv and dependencies
+        run: |
+          # 1. 安装最新版 uv 编译器
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          # 2. 一键安装本项目及所有依赖
+          uv pip install --system .
+
+      - name: Get Global Trends
+        run: |
+          # 3. 运行命令行工具抓取数据 (可以修改 --geo 后面的国家代码，US为美国)
+          trend-pulse trending --geo US --count 10 > today_trends.txt
+
+      - name: Commit and push changes
+        run: |
+          # 4. 将抓取下来的 today_trends.txt 保存并提交回仓库
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add today_trends.txt
+          git commit -m "Update daily trends" || exit 0
+          git push
