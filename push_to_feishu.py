@@ -25,30 +25,34 @@ def main():
         "Content-Type": "application/json"
     }
 
-    # 替换为效果更佳的英文 Prompt，但严格要求中文输出
+    # 重构 Prompt：严格要求 3个国家 * 4个板块 * 3条选题 = 36条选题
+    # 精简了大纲格式，确保这 36 条能在一轮请求里全部吐出来，绝不截断
     prompt = f"""
 You are a top-tier social media content strategist who is expert at creating viral videos on Chinese platforms like Xiaohongshu and Douyin.
 Please analyze the following multi-regional real-time trending raw data:
 {raw_content}
 
 Your Core Tasks:
-1. Carefully filter the raw data and select trends ONLY from these 4 categories: 【Tech】(hardware/digital/trends), 【AI】(tools/news/practical use cases), 【Lifestyle】(daily life/efficiency/budget hacks/food & health), and 【Entertainment】(movies/pop culture/gossip/gaming).
-2. For EACH of the 4 categories, select and transform exactly 3 trends (12 trends in total) into high-potential viral video topics customized for the Chinese audience.
+You must extract and transform exactly 36 high-potential viral video topics customized for the Chinese audience.
+The topics must follow a strict matrix of 3 regions (US, JP, KR) x 4 categories (Tech, AI, Lifestyle, Entertainment).
+For EACH region (US, JP, KR) and EACH category (Tech, AI, Lifestyle, Entertainment), you must generate exactly 3 topics (3 * 4 * 3 = 36 topics in total).
 
-Requirements:
-- You must output ONLY a valid JSON array.
-- Do NOT wrap your response in markdown blocks (strictly no ```json and no trailing ```).
-- Do NOT include any conversational preface, introduction, or explanation.
-- All values for "title", "origin", and "outline" MUST be written in natural, engaging Simplified Chinese.
-- The "category" value MUST be written in Chinese and must be one of these exact four: "科技", "AI", "生活", "娱乐".
+Strict Output Requirements:
+1. You must output ONLY a valid JSON array.
+2. Do NOT wrap your response in markdown blocks (strictly no ```json and no trailing ```).
+3. Do NOT include any conversational preface, introduction, or explanation.
+4. All values for "title", "origin", and "outline" MUST be written in natural, engaging Simplified Chinese.
+5. The "region" value MUST be: "美国", "日本", or "韩国".
+6. The "category" value MUST be: "科技", "AI", "生活", or "娱乐".
 
-The JSON array structure must strictly match this template:
+The JSON array structure must strictly match this template (ensure all 36 objects are generated):
 [
   {{
+    "region": "美国",
     "category": "科技",
     "title": "爆款中文标题",
-    "origin": "海外原帖视频简介/搜索热度解释（注明属于哪个国家/地区）",
-    "outline": "详细说明国内切入角度，分步骤写下爆款脚本框架，并写3个情绪共鸣金句"
+    "origin": "海外原帖简短热度来源",
+    "outline": "视频结构：1.钩子痛点 2.核心干货 3.转化结语。包含2句引发情绪共鸣的金句。"
   }}
 ]
 """
@@ -64,7 +68,7 @@ The JSON array structure must strictly match this template:
         }
     }
 
-    print("1. 正在调遣 Gemini (英文底座) 脑暴并按分类筛选中...")
+    print("1. 正在调遣 Gemini (36 选大阵) 脑暴并分类筛选中...")
     
     res = requests.post(ai_url, json=data, headers=headers)
     
@@ -75,9 +79,8 @@ The JSON array structure must strictly match this template:
 
     try:
         response = res.json()
-    except Exception as e:
+    except Exception:
         print("❌ 无法解析 Gemini 返回的数据为 JSON 格式！")
-        print(f"解析错误信息: {e}")  # 这里用到了 e
         print(f"返回的原始文本是:\n{res.text}")
         return
     
@@ -98,7 +101,7 @@ The JSON array structure must strictly match this template:
         topics = json.loads(ai_raw_text)
     except Exception as e:
         print(f"❌ 解析 Gemini 传回的 JSON 失败。原始文本为：\n{ai_raw_text}")
-        print("错误信息：", e)
+        print(f"错误信息: {e}")
         return
 
     # 3. 申请飞书 Tenant Access Token
@@ -116,7 +119,7 @@ The JSON array structure must strictly match this template:
     tenant_token = auth_res["tenant_access_token"]
 
     # 4. 批量写入飞书多维表格
-    print("3. 正在将选题批量运往你的飞书多维表格...")
+    print(f"3. 正在将 {len(topics)} 条选题批量运往你的飞书多维表格...")
     feishu_headers = {
         "Authorization": f"Bearer {tenant_token}",
         "Content-Type": "application/json; charset=utf-8"
@@ -130,6 +133,7 @@ The JSON array structure must strictly match this template:
     for topic in topics:
         records.append({
             "fields": {
+                "国家/地区": topic.get("region", "未知"),
                 "选题分类": topic.get("category", "未分类"),
                 "选题标题": topic.get("title", ""),
                 "海外原帖": topic.get("origin", ""),
@@ -139,7 +143,7 @@ The JSON array structure must strictly match this template:
 
     write_res = requests.post(add_record_url, json={"records": records}, headers=feishu_headers).json()
     if write_res.get("code") == 0:
-        print(f"🎉 恭喜你！每日共 {len(topics)} 条分类选题（中英双语优化版）已成功输送到飞书多维表格！")
+        print(f"🎉 恭喜你！每日共 {len(topics)} 条矩阵选题（中英双语优化版）已成功输送到飞书多维表格！")
     else:
         print("⚠️ 飞书写入出错，请检查多维表格字段名是否完全一致：", write_res)
 
