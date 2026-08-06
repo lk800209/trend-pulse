@@ -44,6 +44,9 @@ Strict Output Requirements:
 4. All values for "title", "origin", and "outline" MUST be written in natural, engaging Simplified Chinese.
 5. The "region" value MUST be: "美国", "日本", or "韩国".
 6. The "category" value MUST be: "科技", "AI", "生活", or "娱乐".
+================ Strict Requirements ================
+1. Attention: Extract the exact source URL (http/https link) from the raw text for each item and put it in the 'url' field. If no URL is found, explicitly set it to ''.
+2. 必须严格按照下面的 JSON 数组模板输出，不要包含任何 markdown 标记或多余文字。
 
 The JSON array structure must strictly match this template (ensure all 36 objects are generated):
 [
