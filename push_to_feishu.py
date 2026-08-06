@@ -51,7 +51,9 @@ The JSON array structure must strictly match this template (ensure all 36 object
     "region": "美国",
     "category": "科技",
     "title": "爆款中文标题",
+    "original_title": "海外原标题的中文直译",
     "origin": "海外原帖简短热度来源",
+    "url": "从原始数据中提取的原文URL链接（若无则留空\"\"）",
     "outline": "视频结构：1.钩子痛点 2.核心干货 3.转化结语。包含2句引发情绪共鸣的金句。"
   }}
 ]
@@ -136,7 +138,9 @@ The JSON array structure must strictly match this template (ensure all 36 object
                 "国家/地区": topic.get("region", "未知"),
                 "选题分类": topic.get("category", "未分类"),
                 "选题标题": topic.get("title", ""),
+                "原题直译": topic.get("original_title", ""),
                 "海外原帖": topic.get("origin", ""),
+                "原文URL": topic.get("url", ""),
                 "爆款脚本大纲": topic.get("outline", "")
             }
         })
