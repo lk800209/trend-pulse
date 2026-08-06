@@ -29,19 +29,19 @@ jobs:
 
       - name: Fetch Trends
         run: |
-          # 3. 让 trend-pulse 稳定抓取日本（JP）地区热点并保存
+          
           export PATH="$HOME/.local/bin:$PATH"
           # 1. 抓取美国数据（新建文件）
           echo "=== COUNTRY: US ===" > raw_data.txt
-          trend-pulse trending --sources youtube,google-trends --geo US --count 15 > raw_data.txt
+          trend-pulse trending --sources youtube,google_trends --geo US --count 15 >> raw_data.txt
           
           # 2. 追加日本数据
           echo "=== COUNTRY: JP ===" >> raw_data.txt
-          trend-pulse trending --sources youtube,google-trends --geo JP --count 15 >> raw_data.txt
+          trend-pulse trending --sources youtube,google_trends --geo JP --count 15 >> raw_data.txt
 
           # 3. 追加韩国数据
           echo "=== COUNTRY: KR ===" >> raw_data.txt
-          trend-pulse trending --sources youtube,google-trends --geo KR --count 15 >> raw_data.txt
+          trend-pulse trending --sources youtube,google_trends --geo KR --count 15 >> raw_data.txt
           
           # 在第 14 行下面追加：
           echo "================= 查看 RAW DATA 内容 ================="
