@@ -47,6 +47,7 @@ Strict Output Requirements:
 ================ Strict Requirements ================
 1. Attention: Extract the exact source URL (http/https link) from the raw text for each item and put it in the 'url' field. If no URL is found, explicitly set it to ''.
 2. 必须严格按照下面的 JSON 数组模板输出，不要包含任何 markdown 标记或多余文字。
+3.If the input raw_data is empty or contains error messages, immediately return an empty JSON array []. Do NOT generate fake or invented topics.
 
 The JSON array structure must strictly match this template (ensure all 36 objects are generated):
 [
@@ -61,6 +62,7 @@ The JSON array structure must strictly match this template (ensure all 36 object
     "outline": "视频结构：1.钩子痛点 2.核心干货 3.转化结语。包含2句引发情绪共鸣的金句。"
   }}
 ]
+
 """
 
     # 适配 Gemini 官方的 JSON 请求格式
